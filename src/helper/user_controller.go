@@ -16,7 +16,7 @@ func init() {
 }
 
 func UserCreate(c *gin.Context) {
-	var public_key_filepath string
+	// var public_key_filepath string
 	var body struct {
 		Username string
 		Pub_key  string
@@ -31,8 +31,8 @@ func UserCreate(c *gin.Context) {
 			"message": "Duplicate username, please try again",
 		})
 	} else {
-		public_key_filepath = services.Create_ssh_key_file(body.Pub_key, body.Username)
-		c.IndentedJSON(http.StatusOK, gin.H{"message": "Create user successful"})
+		services.Create_ssh_key_file(body.Pub_key, body.Username)
+		c.IndentedJSON(http.StatusOK, gin.H{"message": "Create and add user successful"})
 	}
 }
 

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-var path_dir = "/home/hoalt/script/go_project/src"
+var path_dir = "..\\src"
 
 func LoadEnv() {
 	err := godotenv.Load(filepath.Join(path_dir, ".env"))
