@@ -82,5 +82,6 @@ func UserUpdate(c *gin.Context) {
 func DeleteUser(c *gin.Context) {
 	username := c.Param("username")
 	DB.Delete(&model.User{}, "username = ?", username)
+	services.Delete_sshkey_from_switch(username)
 	c.Status(200)
 }
