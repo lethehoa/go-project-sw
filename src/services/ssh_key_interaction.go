@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os/exec"
 	"bytes"
+	"bufio"
+	"strings"
 )
 
 // user admin sẽ  hoàn toàn được ssh vào thông qua key mà không cần pass, hoặc sẽ chạy 1 lệnh ssh để copy vào.
@@ -41,6 +43,7 @@ func Delete_sshkey_from_switch(username string) {
 func Enable_ssh_key_in_SW(conn *ssh.Client, username string ,interaction string) {
 	defer conn.Close()
 	var cmds []string
+	var tmp string
 	session, err := conn.NewSession()
 
 	if err != nil {
@@ -48,6 +51,7 @@ func Enable_ssh_key_in_SW(conn *ssh.Client, username string ,interaction string)
 	}
 
 	sdtin, _ := session.StdinPipe()
+	sdtout, _ := session.StdoutPipe()
 	session.Stdout = os.Stdout
 	session.Stdin = os.Stdin
 	session.Shell()
@@ -59,18 +63,42 @@ func Enable_ssh_key_in_SW(conn *ssh.Client, username string ,interaction string)
 			"copy run start",
 		}
 	} else {
+		Disconnect_a_session(conn, username) // disconnect all the session of each user 
 		cmds = []string{
 			"conf t",
 			"no username " + username,		//Xoá user ra khỏi switch
 			"move ssh-key/" + username + ".pub old-ssh/" + username + ".pub",
 			"copy run start",
-			// VẪN THIẾU COMMAND XOÁ KEY FILE
+		}
+		scanner := bufio.NewScanner(sdtout)
+		for scanner.Scan() {
+			tmp = scanner.Text()
+			if (strings.Contains(tmp, username)){
+				// fmt.Println(text)
+				x := strings.Split(tmp, " ")
+				fmt.Println(len(x))
+			}
 		}
 	}
 	
 	for _, cmd := range cmds {
 		fmt.Fprintf(sdtin, "%s\n", cmd)
 	}
+	session.Close()
+}
+
+func Disconnect_a_session(conn *ssh.Client, username string){
+	defer conn.Close()
+	// var cmds []string
+	session, err := conn.NewSession()
+	if err != nil {
+		log.Fatal("Failed to create session %v: ", err)
+	}
+
+	sdtin, _ := session.StdinPipe()
+	session.Stdin = os.Stdin
+	session.Shell()
+	fmt.Fprintf(sdtin, "%s\n", "clear user " + username)
 	session.Close()
 }
 
