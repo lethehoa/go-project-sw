@@ -7,13 +7,11 @@ import (
 	"fmt"
 	"os/exec"
 	"bytes"
-	"bufio"
-	"strings"
+	// "bufio"
+	// "strings"
 )
 
-// user admin sẽ  hoàn toàn được ssh vào thông qua key mà không cần pass, hoặc sẽ chạy 1 lệnh ssh để copy vào.
-
-func Create_ssh_key_file(pub_key string, username string){ 			// thực hiện hai vấn đề, thứ nhất là tạo file ssh-key, thứ hai là copy sshkey vào sw
+func Create_ssh_key_file(pub_key string, username string, check int){ 		
 	filepath := "D:\\Documents\\Learn_Go\\ssh-key\\" + username + ".pub"   // code trên Windows, sẽ fix lại sau khi test và chuyển sang linux
 	// filenamefull := filename + ".pub"
 	f, _ := os.Create(filepath)
@@ -33,17 +31,21 @@ func Create_ssh_key_file(pub_key string, username string){ 			// thực hiện h
 		return
 	}
 	fmt.Println("Result: " + out.String())
-	Enable_ssh_key_in_SW(establish_ssh_con(), username, "create")
+	if check == 1 {
+		Interact_ssh_key_in_SW(establish_ssh_con(), username, "create")
+	} else {
+		Interact_ssh_key_in_SW(establish_ssh_con(), username, "update")
+	}
+	
 }
 
 func Delete_sshkey_from_switch(username string) {
-	Enable_ssh_key_in_SW(establish_ssh_con(), username, "delete")
+	Interact_ssh_key_in_SW(establish_ssh_con(), username, "delete")
 }
 
-func Enable_ssh_key_in_SW(conn *ssh.Client, username string ,interaction string) {
+func Interact_ssh_key_in_SW(conn *ssh.Client, username string ,interaction string) {
 	defer conn.Close()
 	var cmds []string
-	var tmp string
 	session, err := conn.NewSession()
 
 	if err != nil {
@@ -51,7 +53,6 @@ func Enable_ssh_key_in_SW(conn *ssh.Client, username string ,interaction string)
 	}
 
 	sdtin, _ := session.StdinPipe()
-	sdtout, _ := session.StdoutPipe()
 	session.Stdout = os.Stdout
 	session.Stdin = os.Stdin
 	session.Shell()
@@ -62,7 +63,7 @@ func Enable_ssh_key_in_SW(conn *ssh.Client, username string ,interaction string)
 			"username " + username + " sshkey file ssh-key/" + username + ".pub",
 			"copy run start",
 		}
-	} else {
+	} else if interaction == "delete" {
 		Disconnect_a_session(conn, username) // disconnect all the session of each user 
 		cmds = []string{
 			"conf t",
@@ -70,17 +71,15 @@ func Enable_ssh_key_in_SW(conn *ssh.Client, username string ,interaction string)
 			"move ssh-key/" + username + ".pub old-ssh/" + username + ".pub",
 			"copy run start",
 		}
-		scanner := bufio.NewScanner(sdtout)
-		for scanner.Scan() {
-			tmp = scanner.Text()
-			if (strings.Contains(tmp, username)){
-				// fmt.Println(text)
-				x := strings.Split(tmp, " ")
-				fmt.Println(len(x))
-			}
+	} else if interaction == "update" {
+		Disconnect_a_session(conn, username)
+		cmds = []string{
+			"conf t",
+			"username " + username + " sshkey file ssh-key/" + username + ".pub",
+			"move ssh-key/" + username + ".pub old-ssh/" + username + ".pub",
+			"copy run start",
 		}
 	}
-	
 	for _, cmd := range cmds {
 		fmt.Fprintf(sdtin, "%s\n", cmd)
 	}
@@ -88,8 +87,6 @@ func Enable_ssh_key_in_SW(conn *ssh.Client, username string ,interaction string)
 }
 
 func Disconnect_a_session(conn *ssh.Client, username string){
-	defer conn.Close()
-	// var cmds []string
 	session, err := conn.NewSession()
 	if err != nil {
 		log.Fatal("Failed to create session %v: ", err)
@@ -99,7 +96,6 @@ func Disconnect_a_session(conn *ssh.Client, username string){
 	session.Stdin = os.Stdin
 	session.Shell()
 	fmt.Fprintf(sdtin, "%s\n", "clear user " + username)
-	session.Close()
 }
 
 func establish_ssh_con() *ssh.Client {
