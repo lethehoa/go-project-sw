@@ -1,12 +1,13 @@
 package helper
 
 import (
-	"github.com/joho/godotenv"
 	"log"
 	"path/filepath"
+
+	"github.com/joho/godotenv"
 )
 
-var path_dir = "..\\src"
+var path_dir = "../src"
 
 func LoadEnv() {
 	err := godotenv.Load(filepath.Join(path_dir, ".env"))

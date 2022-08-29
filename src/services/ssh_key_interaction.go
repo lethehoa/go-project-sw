@@ -1,18 +1,36 @@
 package services
 
 import (
-	"os"
-	"log"
-	"golang.org/x/crypto/ssh"
-	"fmt"
-	"os/exec"
+	"bufio"
 	"bytes"
+	"fmt"
+	"log"
+	"os"
+	"os/exec"
+	"strings"
+
+	"golang.org/x/crypto/ssh"
 	// "bufio"
 	// "strings"
 )
 
-func Create_ssh_key_file(pub_key string, username string, check int){ 		
-	filepath := "D:\\Documents\\Learn_Go\\ssh-key\\" + username + ".pub"   // code trên Windows, sẽ fix lại sau khi test và chuyển sang linux
+type Switch_VN struct {
+	IP       string
+	Password string
+}
+
+var current_switch []Switch_VN
+
+func init() {
+	//Load switch file
+	f, _ := os.Open("/root/Documents/switch-information/information.txt")
+	readInformationFromFile(f)
+	f.Close()
+	//Append to the slide current_switch
+}
+
+func Create_ssh_key_file(pub_key string, username string, check int) {
+	filepath := "~/Documents/key/" + username + ".pub"
 	// filenamefull := filename + ".pub"
 	f, _ := os.Create(filepath)
 	defer f.Close()
@@ -20,30 +38,54 @@ func Create_ssh_key_file(pub_key string, username string, check int){
 	if err != nil {
 		log.Fatal("Fail to create key")
 	}
-	c := exec.Command("scp", "-i", "D:\\Documents\\Learn_Go\\ssh-key\\switch-nopass", filepath ,"admin@192.168.57.150:bootflash:/ssh-key")		//Đẩy key lên switch. // code trên Windows, sẽ fix lại sau khi test và chuyển sang linux
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	c.Stdout = &out
-	c.Stderr = &stderr
-	err2 := c.Run()
-	if err2 != nil {
-		fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
-		return
+	for i := 0; i < len(current_switch); i++ {
+		c := exec.Command("scp", filepath, "admin@"+current_switch[i].IP+":bootflash:/ssh-key") //Đẩy key lên switch.
+		in, err := session.StdinPipe()
+		if err != nil {
+			log.Fatal(err)
+		}
+		var out bytes.Buffer
+		var stderr bytes.Buffer
+		c.Stdout = &out
+		c.Stderr = &stderr
+		err2 := c.Run()
+		if err2 != nil {
+			fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
+			return
+		}
+		fmt.Println("Result: " + out.String())
 	}
-	fmt.Println("Result: " + out.String())
+
+	// in, err := session.StdinPipe()
+	// if err != nil {
+	//     log.Fatal(err)
+	// }
+
+	// _, err = in.Write([]byte(conn.password + "\n"))
+	//             if err != nil {
+	//                 break
+	//             }
+
 	if check == 1 {
-		Interact_ssh_key_in_SW(establish_ssh_con(), username, "create")
+		for i := 0; i < len(current_switch); i++ {
+			Interact_ssh_key_in_SW(establish_ssh_con(current_switch[i].IP, current_switch[i].Password), username, "create")
+		}
+
 	} else {
-		Interact_ssh_key_in_SW(establish_ssh_con(), username, "update")
+		for i := 0; i < len(current_switch); i++ {
+			Interact_ssh_key_in_SW(establish_ssh_con(current_switch[i].IP, current_switch[i].Password), username, "update")
+		}
 	}
-	
+
 }
 
 func Delete_sshkey_from_switch(username string) {
-	Interact_ssh_key_in_SW(establish_ssh_con(), username, "delete")
+	for i := 0; i < len(current_switch); i++ {
+		Interact_ssh_key_in_SW(establish_ssh_con(current_switch[i].IP, current_switch[i].Password), username, "delete")
+	}
 }
 
-func Interact_ssh_key_in_SW(conn *ssh.Client, username string ,interaction string) {
+func Interact_ssh_key_in_SW(conn *ssh.Client, username string, interaction string) {
 	defer conn.Close()
 	var cmds []string
 	session, err := conn.NewSession()
@@ -59,15 +101,15 @@ func Interact_ssh_key_in_SW(conn *ssh.Client, username string ,interaction strin
 	if interaction == "create" {
 		cmds = []string{
 			"conf t",
-			"username " + username + " role network-admin",		//Tạo user để ssh
+			"username " + username + " role network-admin", //Tạo user để ssh
 			"username " + username + " sshkey file ssh-key/" + username + ".pub",
 			"copy run start",
 		}
 	} else if interaction == "delete" {
-		Disconnect_a_session(conn, username) // disconnect all the session of each user 
+		Disconnect_a_session(conn, username) // disconnect all the session of each user
 		cmds = []string{
 			"conf t",
-			"no username " + username,		//Xoá user ra khỏi switch
+			"no username " + username, //Xoá user ra khỏi switch
 			"move ssh-key/" + username + ".pub old-ssh/" + username + ".pub",
 			"copy run start",
 		}
@@ -86,7 +128,7 @@ func Interact_ssh_key_in_SW(conn *ssh.Client, username string ,interaction strin
 	session.Close()
 }
 
-func Disconnect_a_session(conn *ssh.Client, username string){
+func Disconnect_a_session(conn *ssh.Client, username string) {
 	session, err := conn.NewSession()
 	if err != nil {
 		log.Fatal("Failed to create session %v: ", err)
@@ -95,21 +137,30 @@ func Disconnect_a_session(conn *ssh.Client, username string){
 	sdtin, _ := session.StdinPipe()
 	session.Stdin = os.Stdin
 	session.Shell()
-	fmt.Fprintf(sdtin, "%s\n", "clear user " + username)
+	fmt.Fprintf(sdtin, "%s\n", "clear user "+username)
 }
 
-func establish_ssh_con() *ssh.Client {
+func establish_ssh_con(ip string, password string) *ssh.Client {
 	config := &ssh.ClientConfig{
 		User: "admin",
 		Auth: []ssh.AuthMethod{
-			ssh.Password("admin"),
+			ssh.Password(password),
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
-	conn, err := ssh.Dial("tcp", "192.168.57.150"+":22", config)
+	conn, err := ssh.Dial("tcp", ip+":22", config)
 	if err != nil {
 		log.Fatal("Failed to dial: ", err)
 	}
 	return conn
-} 
+}
+
+func readInformationFromFile(file *os.File) {
+	scanner := bufio.NewScanner(file)
+	var store_tmp []string
+	for scanner.Scan() {
+		store_tmp = strings.Split(scanner.Text(), " ")
+		current_switch = append(current_switch, Switch_VN{store_tmp[0], store_tmp[1]})
+	}
+}
