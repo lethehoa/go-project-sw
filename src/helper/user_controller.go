@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"src/model"
-	"github.com/gin-gonic/gin"
 	"src/services"
+
+	"github.com/gin-gonic/gin"
 )
 
 var Users []model.User
@@ -58,9 +59,9 @@ func ReturnSingleUser(c *gin.Context) {
 
 func UserUpdate(c *gin.Context) {
 	username := c.Param("username")
-	
+
 	var body struct {
-		Pub_key  string
+		Pub_key string
 	}
 
 	c.BindJSON(&body)
@@ -73,13 +74,13 @@ func UserUpdate(c *gin.Context) {
 	} else {
 		DB.Model(&user).Updates(model.User{
 			Username: username,
-			Email: username + "@vietnix.com.vn",
+			Email:    username + "@vietnix.com.vn",
 			Pub_key:  body.Pub_key,
 		})
 		services.Create_ssh_key_file(body.Pub_key, username, 0)
 		c.IndentedJSON(http.StatusOK, user)
 	}
-	
+
 }
 
 func DeleteUser(c *gin.Context) {
