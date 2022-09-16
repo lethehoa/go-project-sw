@@ -42,34 +42,6 @@ func Create_ssh_key_file(pub_key string, username string, check int) {
 	}
 	pushSSHkeyToSwitch(username, filepath)
 
-	// for i := 0; i < len(current_switch); i++ {
-	// 	c := exec.Command("scp", filepath, "admin@"+current_switch[i].IP+":bootflash:/ssh-key") //Đẩy key lên switch.
-	// 	in, err := session.StdinPipe()
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// 	var out bytes.Buffer
-	// 	var stderr bytes.Buffer
-	// 	c.Stdout = &out
-	// 	c.Stderr = &stderr
-	// 	err2 := c.Run()
-	// 	if err2 != nil {
-	// 		fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
-	// 		return
-	// 	}
-	// 	fmt.Println("Result: " + out.String())
-	// }
-
-	// in, err := session.StdinPipe()
-	// if err != nil {
-	//     log.Fatal(err)
-	// }
-
-	// _, err = in.Write([]byte(conn.password + "\n"))
-	//             if err != nil {
-	//                 break
-	//             }
-
 	if check == 1 {
 		for i := 0; i < len(current_switch); i++ {
 			Interact_ssh_key_in_SW(establish_ssh_con(current_switch[i].IP, current_switch[i].Password, current_switch[i].Port), username, "create")

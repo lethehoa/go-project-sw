@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"src/model"
+
 	"src/services"
 
 	"github.com/gin-gonic/gin"
@@ -17,15 +18,14 @@ func init() {
 }
 
 func UserCreate(c *gin.Context) {
-	// var public_key_filepath string
 	var body struct {
 		Username string
+		Type     string
 		Pub_key  string
 	}
-	c.BindJSON(&body) //Accept input from user
-
+	c.BindJSON(&body)
 	email := body.Username + "@vietnix.com.vn"
-	user := model.User{Username: body.Username, Email: email, Pub_key: body.Pub_key}
+	user := model.User{Username: body.Username, Type: body.Type, Email: email, Pub_key: body.Pub_key}
 	result := DB.Create(&user)
 	if result.Error != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{
@@ -40,7 +40,6 @@ func UserCreate(c *gin.Context) {
 func ReturnAllUsers(c *gin.Context) {
 	DB.Find(&Users)
 	c.IndentedJSON(http.StatusOK, Users)
-
 }
 
 func ReturnSingleUser(c *gin.Context) {
@@ -74,6 +73,7 @@ func UserUpdate(c *gin.Context) {
 	} else {
 		DB.Model(&user).Updates(model.User{
 			Username: username,
+			Type:     user.Type,
 			Email:    username + "@vietnix.com.vn",
 			Pub_key:  body.Pub_key,
 		})
@@ -85,7 +85,11 @@ func UserUpdate(c *gin.Context) {
 
 func DeleteUser(c *gin.Context) {
 	username := c.Param("username")
-	DB.Delete(&model.User{}, "username = ?", username)
+	result := DB.Delete(&model.User{}, "username = ?", username)
+	if result.Error != nil {
+		c.String("User is not available")
+		return
+	}
 	services.Delete_sshkey_from_switch(username)
 	c.Status(200)
 }
